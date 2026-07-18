@@ -1,0 +1,57 @@
+#!/bin/sh
+# Maven Wrapper script for Unix-like systems
+# https://maven.apache.org/wrapper/
+
+set -euf
+# shellcheck disable=SC2034
+MVNW_VERBOSE=${MVNW_VERBOSE:-false}
+
+# OS specific support.
+case "$(uname -s)" in
+  CYGWIN*|MINGW*|MSYS*) cygwin=true ;;
+  *) cygwin=false ;;
+esac
+
+# Determine the project base directory
+MAVEN_PROJECTBASEDIR="${MAVEN_BASEDIR:-$(cd "$(dirname "$0")" && pwd)}"
+export MAVEN_PROJECTBASEDIR
+
+MAVEN_WRAPPER_JAR="$MAVEN_PROJECTBASEDIR/.mvn/wrapper/maven-wrapper.jar"
+MAVEN_WRAPPER_PROPERTIES="$MAVEN_PROJECTBASEDIR/.mvn/wrapper/maven-wrapper.properties"
+
+# Download maven-wrapper.jar if missing
+if [ ! -f "$MAVEN_WRAPPER_JAR" ]; then
+  if [ -f "$MAVEN_WRAPPER_PROPERTIES" ]; then
+    WRAPPER_URL=$(grep 'wrapperUrl' "$MAVEN_WRAPPER_PROPERTIES" | cut -d'=' -f2-)
+    if command -v wget > /dev/null 2>&1; then
+      wget -q -O "$MAVEN_WRAPPER_JAR" "$WRAPPER_URL"
+    elif command -v curl > /dev/null 2>&1; then
+      curl -sS -o "$MAVEN_WRAPPER_JAR" "$WRAPPER_URL"
+    else
+      echo "Error: Cannot download maven-wrapper.jar, no wget or curl found"
+      exit 1
+    fi
+  fi
+fi
+
+# Determine Maven distribution URL
+if [ -f "$MAVEN_WRAPPER_PROPERTIES" ]; then
+  DIST_URL=$(grep 'distributionUrl' "$MAVEN_WRAPPER_PROPERTIES" | cut -d'=' -f2-)
+fi
+
+# Use wrapper jar if available, otherwise try system mvn
+if [ -f "$MAVEN_WRAPPER_JAR" ]; then
+  JAVA_HOME="${JAVA_HOME:-}"
+  if [ -z "$JAVA_HOME" ]; then
+    javaExecutable="java"
+  else
+    javaExecutable="$JAVA_HOME/bin/java"
+  fi
+  exec "$javaExecutable" \
+    ${MAVEN_OPTS:-} \
+    -classpath "$MAVEN_WRAPPER_JAR" \
+    org.apache.maven.wrapper.MavenWrapperMain "$@"
+else
+  # Fallback: try to use system Maven
+  exec mvn "$@"
+fi

@@ -1,0 +1,193 @@
+# =============================================================================
+# SmartWealth AI - Full Stack Local Development (Docker Compose)
+# =============================================================================
+#
+# Usage:
+#   1. Copy .env.example to .env and adjust values:
+#        cp .env.example .env
+#
+#   2. Start all services:
+#        docker-compose up --build
+#
+#   3. Start in detached mode:
+#        docker-compose up -d --build
+#
+#   4. View logs:
+#        docker-compose logs -f [service-name]
+#
+#   5. Stop services:
+#        docker-compose down
+#
+#   6. Stop and remove volumes (clean slate):
+#        docker-compose down -v
+#
+# Frontend (React/Vite):
+#   The React dev server is NOT containerized for faster iteration.
+#   Run it separately:
+#     cd frontend
+#     npm install
+#     npm run dev
+#   The dev server runs on http://localhost:5173 and proxies API calls
+#   to the backend at http://localhost:8080.
+#
+# Service URLs:
+#   - PostgreSQL:      localhost:5432
+#   - Quarkus Backend: http://localhost:8080
+#   - AI Service:      http://localhost:8000
+#   - Frontend:        http://localhost:5173 (run separately)
+#   - Swagger UI:      http://localhost:8080/q/swagger-ui
+#
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 15 Database
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: smartwealth-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-smartwealth}
+      POSTGRES_USER: ${POSTGRES_USER:-smartwealth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartwealth_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Auto-run migrations on first startup via initdb.d mechanism
+      - ./database/migrations:/docker-entrypoint-initdb.d/01-migrations:ro
+      - ./database/seed:/docker-entrypoint-initdb.d/02-seed:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smartwealth} -d ${POSTGRES_DB:-smartwealth}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - smartwealth-net
+
+  # ---------------------------------------------------------------------------
+  # Database Migration Runner
+  # Ensures migrations are applied even if the database already exists.
+  # Runs once on startup, then exits.
+  # ---------------------------------------------------------------------------
+  db-migrate:
+    image: postgres:15-alpine
+    container_name: smartwealth-db-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB:-smartwealth}
+      PGUSER: ${POSTGRES_USER:-smartwealth}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-smartwealth_dev}
+    volumes:
+      - ./database/migrations:/migrations:ro
+    entrypoint: >
+      sh -c '
+        echo "Running database migrations..."
+        for f in /migrations/*.sql; do
+          echo "Applying: $$f"
+          psql -v ON_ERROR_STOP=0 -f "$$f" 2>&1 || true
+        done
+        echo "Migrations complete."
+      '
+    restart: "no"
+    networks:
+      - smartwealth-net
+
+  # ---------------------------------------------------------------------------
+  # Quarkus Backend (Java 17)
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: smartwealth-backend
+    environment:
+      # Database connection
+      QUARKUS_DATASOURCE_DB_KIND: postgresql
+      QUARKUS_DATASOURCE_JDBC_URL: ${QUARKUS_DATASOURCE_JDBC_URL:-jdbc:postgresql://postgres:5432/smartwealth}
+      QUARKUS_DATASOURCE_USERNAME: ${QUARKUS_DATASOURCE_USERNAME:-smartwealth}
+      QUARKUS_DATASOURCE_PASSWORD: ${QUARKUS_DATASOURCE_PASSWORD:-smartwealth_dev}
+      QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION: validate
+      # AI Service connection
+      AI_SERVICE_BASE_URL: ${AI_SERVICE_BASE_URL:-http://ai-service:8000}
+      QUARKUS_REST_CLIENT_AI_SERVICE_URL: ${AI_SERVICE_BASE_URL:-http://ai-service:8000}
+      # CORS (allow frontend dev server)
+      QUARKUS_HTTP_CORS: "true"
+      QUARKUS_HTTP_CORS_ORIGINS: "http://localhost:5173,http://localhost:3000"
+      # File upload
+      QUARKUS_HTTP_LIMITS_MAX_BODY_SIZE: "10485760"
+      SMARTWEALTH_UPLOAD_DIRECTORY: /app/uploads
+    ports:
+      - "8080:8080"
+    volumes:
+      - backend-uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    restart: unless-stopped
+    networks:
+      - smartwealth-net
+
+  # ---------------------------------------------------------------------------
+  # Python FastAPI AI Service
+  # ---------------------------------------------------------------------------
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: smartwealth-ai-service
+    environment:
+      # Database (read-only access for context retrieval)
+      DATABASE_URL: ${DATABASE_URL:-postgresql://smartwealth:smartwealth_dev@postgres:5432/smartwealth}
+      # OpenAI API key (optional - rule-based categorization works without it)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Service configuration
+      HOST: "0.0.0.0"
+      PORT: "8000"
+      DEBUG: ${AI_SERVICE_DEBUG:-false}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/ai/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - smartwealth-net
+
+# ---------------------------------------------------------------------------
+# Volumes
+# ---------------------------------------------------------------------------
+volumes:
+  pgdata:
+    driver: local
+  backend-uploads:
+    driver: local
+
+# ---------------------------------------------------------------------------
+# Networks
+# ---------------------------------------------------------------------------
+networks:
+  smartwealth-net:
+    driver: bridge
