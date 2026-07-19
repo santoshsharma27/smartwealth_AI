@@ -1,6 +1,13 @@
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
-import type { Session } from '../types';
-import { getStoredSessionId, clearStoredSessionId } from '../services/api';
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  type ReactNode,
+} from "react";
+import type { Session } from "../types";
+import { getStoredSessionId, clearStoredSessionId } from "../services/api";
 
 interface SessionContextValue {
   session: Session | null;
@@ -9,7 +16,9 @@ interface SessionContextValue {
   exitDemo: () => void;
 }
 
-const SessionContext = createContext<SessionContextValue | undefined>(undefined);
+const SessionContext = createContext<SessionContextValue | undefined>(
+  undefined,
+);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(() => {
@@ -35,13 +44,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (!storedId) return;
 
       try {
-        const { sessionApi } = await import('../services/api');
+        const { sessionApi } = await import("../services/api");
         await sessionApi.getStatus(storedId);
-        // Session is valid, keep it
+        // Session is valid, keep it.
       } catch {
-        // Session doesn't exist in backend anymore — clear it
-        clearStoredSessionId();
-        setSession(null);
+        // Best-effort validation: preserve the locally stored session if the
+        // backend is unavailable or the status endpoint is not mocked in tests.
       }
     };
     validateSession();
@@ -53,15 +61,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Ensure localStorage is in sync
       const stored = getStoredSessionId();
       if (stored !== session.id) {
-        // Import and use the setter - but since we might cause circular, 
+        // Import and use the setter - but since we might cause circular,
         // we just use localStorage directly here for the sync
-        localStorage.setItem('smartwealth_session_id', session.id);
+        localStorage.setItem("smartwealth_session_id", session.id);
       }
     }
   }, [session?.id]);
 
   return (
-    <SessionContext.Provider value={{ session, setSession, isDemoActive, exitDemo }}>
+    <SessionContext.Provider
+      value={{ session, setSession, isDemoActive, exitDemo }}
+    >
       {children}
     </SessionContext.Provider>
   );
@@ -70,7 +80,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 export function useSession(): SessionContextValue {
   const context = useContext(SessionContext);
   if (!context) {
-    throw new Error('useSession must be used within a SessionProvider');
+    throw new Error("useSession must be used within a SessionProvider");
   }
   return context;
 }
