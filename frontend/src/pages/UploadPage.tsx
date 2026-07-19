@@ -1,14 +1,14 @@
-import { useState, useRef, useCallback } from 'react';
-import type { DragEvent, ChangeEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { documentApi, sessionApi, getStoredSessionId, setStoredSessionId } from '../services/api';
-import { useSession } from '../context/SessionContext';
+import { useState, useRef, useCallback } from "react";
+import type { DragEvent, ChangeEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { documentApi, sessionApi, setStoredSessionId } from "../services/api";
+import { useSession } from "../context/SessionContext";
 
 /** Document type for each uploaded file */
-export type DocumentType = 'salary_slip' | 'bank_statement' | '';
+export type DocumentType = "salary_slip" | "bank_statement" | "";
 
 /** Status of individual file upload */
-export type FileUploadStatus = 'pending' | 'uploading' | 'done' | 'error';
+export type FileUploadStatus = "pending" | "uploading" | "done" | "error";
 
 /** Represents a file in the upload queue with metadata */
 export interface UploadFile {
@@ -24,7 +24,7 @@ const MAX_FILE_COUNT = 5;
 const MIN_FILE_COUNT = 1;
 
 /** All accepted MIME types for the file picker */
-const ALL_ACCEPTED_MIME = '.pdf,.csv';
+const ALL_ACCEPTED_MIME = ".pdf,.csv";
 
 /** Generate a unique ID */
 function generateId(): string {
@@ -35,24 +35,32 @@ function generateId(): string {
  * Validates a file based on its assigned document type.
  * Returns an error message or undefined if valid.
  */
-export function validateFile(file: File, documentType: DocumentType): string | undefined {
+export function validateFile(
+  file: File,
+  documentType: DocumentType,
+): string | undefined {
   if (file.size === 0) {
-    return 'File is empty. Please upload a valid file.';
+    return "File is empty. Please upload a valid file.";
   }
   if (file.size > MAX_FILE_SIZE) {
-    return 'File exceeds maximum size of 15 MB.';
+    return "File exceeds maximum size of 15 MB.";
   }
 
-  if (documentType === 'salary_slip') {
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  if (documentType === "salary_slip") {
+    const isPdf =
+      file.type === "application/pdf" ||
+      file.name.toLowerCase().endsWith(".pdf");
     if (!isPdf) {
-      return 'File format not supported. Please upload PDF for salary slips.';
+      return "File format not supported. Please upload PDF for salary slips.";
     }
-  } else if (documentType === 'bank_statement') {
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-    const isCsv = file.type === 'text/csv' || file.name.toLowerCase().endsWith('.csv');
+  } else if (documentType === "bank_statement") {
+    const isPdf =
+      file.type === "application/pdf" ||
+      file.name.toLowerCase().endsWith(".pdf");
+    const isCsv =
+      file.type === "text/csv" || file.name.toLowerCase().endsWith(".csv");
     if (!isPdf && !isCsv) {
-      return 'File format not supported. Please upload PDF or CSV for bank statements.';
+      return "File format not supported. Please upload PDF or CSV for bank statements.";
     }
   }
 
@@ -61,7 +69,7 @@ export function validateFile(file: File, documentType: DocumentType): string | u
 
 /** Formats file size in human-readable format. */
 function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) return "0 B";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -85,8 +93,8 @@ export function UploadPage() {
       const filesToAdd = fileArray.slice(0, remainingSlots).map((file) => ({
         id: generateId(),
         file,
-        documentType: '' as DocumentType,
-        status: 'pending' as FileUploadStatus,
+        documentType: "" as DocumentType,
+        status: "pending" as FileUploadStatus,
       }));
       return [...prev, ...filesToAdd];
     });
@@ -113,17 +121,17 @@ export function UploadPage() {
         addFiles(e.dataTransfer.files);
       }
     },
-    [addFiles]
+    [addFiles],
   );
 
   const handleFileInput = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files.length > 0) {
         addFiles(e.target.files);
-        e.target.value = '';
+        e.target.value = "";
       }
     },
-    [addFiles]
+    [addFiles],
   );
 
   const handleBrowseClick = useCallback(() => {
@@ -134,15 +142,18 @@ export function UploadPage() {
     setFiles((prev) => prev.filter((f) => f.id !== fileId));
   }, []);
 
-  const handleDocumentTypeChange = useCallback((fileId: string, docType: DocumentType) => {
-    setFiles((prev) =>
-      prev.map((f) => {
-        if (f.id !== fileId) return f;
-        const error = validateFile(f.file, docType);
-        return { ...f, documentType: docType, error };
-      })
-    );
-  }, []);
+  const handleDocumentTypeChange = useCallback(
+    (fileId: string, docType: DocumentType) => {
+      setFiles((prev) =>
+        prev.map((f) => {
+          if (f.id !== fileId) return f;
+          const error = validateFile(f.file, docType);
+          return { ...f, documentType: docType, error };
+        }),
+      );
+    },
+    [],
+  );
 
   const handleUpload = useCallback(async () => {
     if (isUploading) return;
@@ -153,7 +164,7 @@ export function UploadPage() {
     }));
     setFiles(validated);
 
-    const missingType = validated.some((f) => f.documentType === '');
+    const missingType = validated.some((f) => f.documentType === "");
     if (missingType) return;
 
     const hasErrors = validated.some((f) => f.error);
@@ -163,7 +174,9 @@ export function UploadPage() {
     setUploadError(null);
 
     // Mark all files as uploading
-    setFiles((prev) => prev.map((f) => ({ ...f, status: 'uploading' as FileUploadStatus })));
+    setFiles((prev) =>
+      prev.map((f) => ({ ...f, status: "uploading" as FileUploadStatus })),
+    );
 
     try {
       // Always create a fresh session for new uploads
@@ -174,23 +187,29 @@ export function UploadPage() {
 
       // Upload documents via the centralized API client
       const filesToUpload = validated.map((f) => f.file);
-      const documentTypes = validated.map((f) => f.documentType as 'salary_slip' | 'bank_statement');
+      const documentTypes = validated.map(
+        (f) => f.documentType as "salary_slip" | "bank_statement",
+      );
 
       await documentApi.upload(sessionId, filesToUpload, documentTypes);
 
       // Mark all files as done
-      setFiles((prev) => prev.map((f) => ({ ...f, status: 'done' as FileUploadStatus })));
+      setFiles((prev) =>
+        prev.map((f) => ({ ...f, status: "done" as FileUploadStatus })),
+      );
       setUploadComplete(true);
 
       // Update session context
       setSession({ id: sessionId, isDemoActive: false });
 
       setTimeout(() => {
-        navigate('/dashboard');
+        navigate("/dashboard");
       }, 1500);
     } catch {
-      setUploadError('Upload failed. Please try again.');
-      setFiles((prev) => prev.map((f) => ({ ...f, status: 'error' as FileUploadStatus })));
+      setUploadError("Upload failed. Please try again.");
+      setFiles((prev) =>
+        prev.map((f) => ({ ...f, status: "error" as FileUploadStatus })),
+      );
     } finally {
       setIsUploading(false);
     }
@@ -199,7 +218,7 @@ export function UploadPage() {
   const canUpload =
     files.length >= MIN_FILE_COUNT &&
     files.length <= MAX_FILE_COUNT &&
-    files.every((f) => f.documentType !== '' && !f.error) &&
+    files.every((f) => f.documentType !== "" && !f.error) &&
     !isUploading;
 
   const fileCountError =
@@ -209,9 +228,12 @@ export function UploadPage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <h1 className="text-3xl font-bold text-neutral-800 mb-2">Upload Documents</h1>
+      <h1 className="text-3xl font-bold text-neutral-800 mb-2">
+        Upload Documents
+      </h1>
       <p className="text-neutral-600 mb-6">
-        Upload your salary slips (PDF) and bank statements (PDF or CSV) to analyze your finances.
+        Upload your salary slips (PDF) and bank statements (PDF or CSV) to
+        analyze your finances.
       </p>
 
       {/* Upload Complete State */}
@@ -245,15 +267,18 @@ export function UploadPage() {
         aria-label="File upload dropzone. Drag and drop files here or click to browse."
         className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
           isDragOver
-            ? 'border-primary-500 bg-primary-50'
-            : 'border-neutral-300 bg-white hover:border-primary-400 hover:bg-neutral-50'
-        } ${files.length >= MAX_FILE_COUNT ? 'opacity-50 cursor-not-allowed' : ''}`}
+            ? "border-primary-500 bg-primary-50"
+            : "border-neutral-300 bg-white hover:border-primary-400 hover:bg-neutral-50"
+        } ${files.length >= MAX_FILE_COUNT ? "opacity-50 cursor-not-allowed" : ""}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={files.length < MAX_FILE_COUNT ? handleBrowseClick : undefined}
         onKeyDown={(e) => {
-          if ((e.key === 'Enter' || e.key === ' ') && files.length < MAX_FILE_COUNT) {
+          if (
+            (e.key === "Enter" || e.key === " ") &&
+            files.length < MAX_FILE_COUNT
+          ) {
             e.preventDefault();
             handleBrowseClick();
           }
@@ -275,11 +300,12 @@ export function UploadPage() {
             />
           </svg>
           <p className="text-neutral-700 font-medium">
-            Drag and drop files here, or{' '}
+            Drag and drop files here, or{" "}
             <span className="text-primary-600 underline">click to browse</span>
           </p>
           <p className="text-sm text-neutral-500">
-            PDF for salary slips, PDF or CSV for bank statements. Max 15 MB per file.
+            PDF for salary slips, PDF or CSV for bank statements. Max 15 MB per
+            file.
           </p>
           <p className="text-sm text-neutral-500">
             {files.length}/{MAX_FILE_COUNT} files added
@@ -299,7 +325,11 @@ export function UploadPage() {
 
       {/* File Count Error */}
       {fileCountError && (
-        <p className="text-danger-600 text-sm mt-2" role="alert" aria-live="assertive">
+        <p
+          className="text-danger-600 text-sm mt-2"
+          role="alert"
+          aria-live="assertive"
+        >
           {fileCountError}
         </p>
       )}
@@ -340,7 +370,7 @@ export function UploadPage() {
                       onChange={(e) =>
                         handleDocumentTypeChange(
                           uploadFile.id,
-                          e.target.value as DocumentType
+                          e.target.value as DocumentType,
                         )
                       }
                       className="text-sm border border-neutral-300 rounded-md px-2 py-1 bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -379,7 +409,7 @@ export function UploadPage() {
                 </div>
 
                 {/* Status Indicator */}
-                {uploadFile.status === 'uploading' && (
+                {uploadFile.status === "uploading" && (
                   <div className="mt-2">
                     <div className="flex items-center gap-2">
                       <div
@@ -392,15 +422,21 @@ export function UploadPage() {
                       >
                         <div className="bg-primary-500 h-2 rounded-full animate-pulse w-2/3" />
                       </div>
-                      <span className="text-xs text-primary-600">Uploading...</span>
+                      <span className="text-xs text-primary-600">
+                        Uploading...
+                      </span>
                     </div>
                   </div>
                 )}
-                {uploadFile.status === 'done' && (
-                  <p className="mt-2 text-sm text-success-600 font-medium">Uploaded</p>
+                {uploadFile.status === "done" && (
+                  <p className="mt-2 text-sm text-success-600 font-medium">
+                    Uploaded
+                  </p>
                 )}
-                {uploadFile.status === 'error' && (
-                  <p className="mt-2 text-sm text-danger-600 font-medium">Upload failed</p>
+                {uploadFile.status === "error" && (
+                  <p className="mt-2 text-sm text-danger-600 font-medium">
+                    Upload failed
+                  </p>
                 )}
 
                 {/* Validation Error */}
@@ -427,12 +463,12 @@ export function UploadPage() {
           disabled={!canUpload}
           className={`w-full py-3 px-6 rounded-lg font-semibold text-white transition-colors focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
             canUpload
-              ? 'bg-primary-600 hover:bg-primary-700'
-              : 'bg-neutral-300 cursor-not-allowed'
+              ? "bg-primary-600 hover:bg-primary-700"
+              : "bg-neutral-300 cursor-not-allowed"
           }`}
           aria-label="Upload selected documents"
         >
-          {isUploading ? 'Uploading...' : 'Upload Documents'}
+          {isUploading ? "Uploading..." : "Upload Documents"}
         </button>
       </div>
 
